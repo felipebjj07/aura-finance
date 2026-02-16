@@ -3,77 +3,107 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime
+import plotly.express as px
 
-# Configuração de Estilo Aura
-st.set_page_config(page_title="Aura Finance Pro", page_icon="💎", layout="wide")
+# Configuração de Luxo
+st.set_page_config(page_title="Aura Finance Gold", page_icon="⚖️", layout="wide")
 
-# --- BANCO DE DADOS ---
-conn = sqlite3.connect('financas_aura.db', check_same_thread=False)
+# Estilização CSS para um visual Premium
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    .stMetric { background-color: #161b22; padding: 15px; border-radius: 10px; border: 1px solid #30363d; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- CONEXÃO BANCO ---
+conn = sqlite3.connect('financas_aura_v2.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS transacoes 
-             (data TEXT, categoria TEXT, descricao TEXT, valor REAL, tipo TEXT)''')
+             (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, categoria TEXT, 
+              descricao TEXT, valor REAL, tipo TEXT)''')
 conn.commit()
 
-# --- SIDEBAR: METAS ---
-st.sidebar.title("🎯 Metas de My Lord")
-meta_gastos = st.sidebar.number_input("Meta de Gastos Mensais (R$)", value=2000.0)
+# --- SIDEBAR COM COMANDOS ---
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/3135/3135706.png", width=100)
+st.sidebar.title(f"Painel de Controle")
+st.sidebar.markdown("---")
+meta_mensal = st.sidebar.slider("Sua Meta de Gastos (R$)", 500, 20000, 3000)
 
-# --- INTERFACE PRINCIPAL ---
-st.title("💎 Aura Finance: Gestão de Elite")
-st.markdown("---")
+# --- FUNÇÕES DE DADOS ---
+def adicionar_dados(d, c_at, des, v, t):
+    c.execute("INSERT INTO transacoes (data, categoria, descricao, valor, tipo) VALUES (?,?,?,?,?)", (d, c_at, des, v, t))
+    conn.commit()
 
-# Layout em colunas para o formulário
-with st.expander("📥 Registrar Movimentação", expanded=False):
-    c1, c2, c3 = st.columns([2, 2, 1])
-    with c1:
-        desc = st.text_input("Descrição")
-        cat = st.selectbox("Categoria", ["Alimentação", "Lazer", "Contas", "Transporte", "Investimento", "Outros"])
-    with c2:
-        val = st.number_input("Valor (R$)", min_value=0.01)
-        data_mov = st.date_input("Data", datetime.now())
-    with c3:
-        tp = st.radio("Tipo", ["Saída", "Entrada"])
-        if st.button("Confirmar"):
-            c.execute("INSERT INTO transacoes VALUES (?,?,?,?,?)", (data_mov, cat, desc, val, tp))
-            conn.commit()
-            st.success("Registrado!")
+# --- LAYOUT PRINCIPAL ---
+st.title("⚖️ Aura Finance: Inteligência Patrimonial")
 
-# --- PROCESSAMENTO DE DADOS ---
-df = pd.read_sql_query("SELECT * FROM transacoes", conn)
+tabs = st.tabs(["📊 Dashboard", "💸 Lançamentos", "🔍 Histórico Detalhado"])
 
-if not df.empty:
-    df['valor'] = df['valor'].astype(float)
-    total_saidas = df[df['tipo'] == 'Saída']['valor'].sum()
-    total_entradas = df[df['tipo'] == 'Entrada']['valor'].sum()
-    saldo = total_entradas - total_saidas
+# --- TAB 1: DASHBOARD ---
+with tabs[0]:
+    df = pd.read_sql_query("SELECT * FROM transacoes", conn)
+    if not df.empty:
+        df['data'] = pd.to_datetime(df['data'])
+        total_saidas = df[df['tipo'] == 'Saída']['valor'].sum()
+        total_entradas = df[df['tipo'] == 'Entrada']['valor'].sum()
+        saldo_atual = total_entradas - total_saidas
 
-    # Indicadores Visuais
-    col_met1, col_met2, col_met3 = st.columns(3)
-    col_met1.metric("Saldo Geral", f"R$ {saldo:,.2f}")
-    col_met2.metric("Total Saídas", f"R$ {total_saidas:,.2f}", delta="- Gastos", delta_color="inverse")
-    
-    # Barra de Progresso da Meta
-    progresso = min(total_saidas / meta_gastos, 1.0)
-    st.write(f"**Uso da Meta Mensal: {progresso*100:.1f}%**")
-    st.progress(progresso)
-    
-    if total_saidas > meta_gastos:
-        st.warning("⚠️ Atenção, my lord: A meta de gastos foi ultrapassada!")
+        # Métricas em Colunas
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Capital Total", f"R$ {total_entradas:,.2f}")
+        m2.metric("Saídas Totais", f"R$ {total_saidas:,.2f}", delta_color="inverse")
+        
+        cor_saldo = "normal" if saldo_atual > 0 else "inverse"
+        m3.metric("Saldo Líquido", f"R$ {saldo_atual:,.2f}", delta=f"{((saldo_atual/total_entradas)*100 if total_entradas > 0 else 0):.1f}%", delta_color=cor_saldo)
 
-    # Gráficos
-    st.markdown("### Análise de Gastos")
-    col_gr1, col_gr2 = st.columns(2)
-    
-    with col_gr1:
-        # Gráfico de Pizza por Categoria
-        gastos_cat = df[df['tipo'] == 'Saída'].groupby('categoria')['valor'].sum()
-        st.write("**Distribuição por Categoria**")
-        st.pie_chart(gastos_cat)
+        st.markdown("---")
+        
+        c_left, c_right = st.columns([1, 1])
+        
+        with c_left:
+            st.subheader("Concentração de Gastos")
+            df_gastos = df[df['tipo'] == 'Saída']
+            fig = px.pie(df_gastos, values='valor', names='categoria', hole=.4, 
+                         color_discrete_sequence=px.colors.sequential.RdBu)
+            st.plotly_chart(fig, use_container_width=True)
+            
+        with c_right:
+            st.subheader("Saúde da Meta")
+            porcentagem_meta = min(total_saidas / meta_mensal, 1.2)
+            st.progress(min(porcentagem_meta, 1.0))
+            if total_saidas > meta_mensal:
+                st.error(f"Alerta: Você ultrapassou a meta em R$ {total_saidas - meta_mensal:,.2f}!")
+            else:
+                st.info(f"Você ainda pode gastar R$ {meta_mensal - total_saidas:,.2f} este mês.")
 
-    with col_gr2:
-        # Histórico de Transações
-        st.write("**Últimos Registros**")
-        st.dataframe(df.sort_values(by='data', ascending=False).head(10), use_container_width=True)
+# --- TAB 2: LANÇAMENTOS ---
+with tabs[1]:
+    with st.form("form_registro", clear_on_submit=True):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            data_reg = st.date_input("Data da Transação", datetime.now())
+            categoria_reg = st.selectbox("Categoria", ["🏠 Aluguel/Casa", "🍎 Alimentação", "🚗 Transporte", "🎮 Lazer", "💊 Saúde", "📈 Investimento", "💰 Salário/Renda"])
+        with col_b:
+            valor_reg = st.number_input("Valor (R$)", min_value=0.0)
+            tipo_reg = st.radio("Tipo", ["Saída", "Entrada"], horizontal=True)
+        
+        desc_reg = st.text_input("Descrição (Ex: Compra no mercado X)")
+        if st.form_submit_button("Registrar no Cofre"):
+            adicionar_dados(data_reg, categoria_reg, desc_reg, valor_reg, tipo_reg)
+            st.toast("Transação registrada, Aura!")
+            st.rerun()
 
-else:
-    st.info("O cofre está vazio. Comece registrando suas finanças, my lord.")
+# --- TAB 3: HISTÓRICO ---
+with tabs[2]:
+    if not df.empty:
+        st.subheader("Filtros de Pesquisa")
+        filtro_cat = st.multiselect("Filtrar por Categoria", df['categoria'].unique())
+        
+        dados_filtrados = df
+        if filtro_cat:
+            dados_filtrados = df[df['categoria'].isin(filtro_cat)]
+            
+        st.dataframe(dados_filtrados.sort_values(by='data', ascending=False), use_container_width=True)
+    else:
+        st.write("Nenhum dado encontrado.")
