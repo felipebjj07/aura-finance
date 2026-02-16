@@ -48,6 +48,47 @@ with tabs[0]:
         total_saidas = df[df['tipo'] == 'Saída']['valor'].sum()
         total_entradas = df[df['tipo'] == 'Entrada']['valor'].sum()
         saldo_atual = total_entradas - total_saidas
+# --- MÓDULO AURA VISION (IA PREDITIVA) ---
+st.markdown("---")
+st.subheader("🔮 Aura Vision: Projeção de Final de Mês")
+
+# Pegamos apenas os gastos do mês atual
+df['data'] = pd.to_datetime(df['data'])
+mes_atual = datetime.now().month
+ano_atual = datetime.now().year
+gastos_mes = df[(df['tipo'] == 'Saída') & (df['data'].dt.month == mes_atual) & (df['data'].dt.year == ano_atual)]
+
+if not gastos_mes.empty:
+    # Calculamos o gasto médio por dia
+    dia_atual = datetime.now().day
+    total_gasto_mes = gastos_mes['valor'].sum()
+    media_diaria = total_gasto_mes / dia_atual
+    
+    # Dias restantes no mês (considerando 30 dias para simplificar)
+    dias_restantes = 30 - dia_atual
+    projecao_final = total_gasto_mes + (media_diaria * dias_restantes)
+    
+    # Exibição da Inteligência
+    c_ia1, c_ia2 = st.columns([1, 2])
+    
+    with c_ia1:
+        if projecao_final > meta_mensal:
+            st.warning(f"**Alerta de Risco:** No ritmo atual, você fechará o mês com **R$ {projecao_final:,.2f}** em gastos.")
+        else:
+            st.success(f"**Caminho Seguro:** No ritmo atual, você fechará o mês com **R$ {projecao_final:,.2f}**, dentro da meta.")
+            
+    with c_ia2:
+        # Gráfico de Tendência (O que já foi vs O que a IA prevê)
+        dados_projecao = pd.DataFrame({
+            'Status': ['Gasto Real', 'Projeção IA'],
+            'Valor': [total_gasto_mes, projecao_final]
+        })
+        fig_proj = px.bar(dados_projecao, x='Status', y='Valor', color='Status',
+                          color_discrete_map={'Gasto Real': '#636EFA', 'Projeção IA': '#EF553B'})
+        st.plotly_chart(fig_proj, use_container_width=True)
+else:
+    st.info("Aura ainda não tem dados suficientes deste mês para prever o futuro, my lord.")
+        
 
         # Métricas em Colunas
         m1, m2, m3 = st.columns(3)
